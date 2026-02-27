@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Terminal</title>
+    <link rel="stylesheet" href="index.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="glass-container">
+        <header>
+            <h1>Live <span class="accent">Market</span> Terminal</h1>
+            <div id="status" class="status-pill DISCONNECTED">
+                <span class="pulse-dot"></span>
+                <span class="status-text">Disconnected</span>
+            </div>
+        </header>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Instrument</th>
+                        <th>Bid Price</th>
+                        <th>Ask Price</th>
+                        <th>Trend (10s)</th>
+                    </tr>
+                </thead>
+                <tbody id="market-data">
+                    <tr id="EURUSD" class="instrument-row">
+                        <td class="symbol-cell">EUR/USD</td>
+                        <td class="price-cell bid">-</td>
+                        <td class="price-cell ask">-</td>
+                        <td class="trend-cell"><canvas class="sparkline" id="spark-EURUSD"></canvas></td>
+                    </tr>
+                    <tr id="GBPUSD" class="instrument-row">
+                        <td class="symbol-cell">GBP/USD</td>
+                        <td class="price-cell bid">-</td>
+                        <td class="price-cell ask">-</td>
+                        <td class="trend-cell"><canvas class="sparkline" id="spark-GBPUSD"></canvas></td>
+                    </tr>
+                    <tr id="USDJPY" class="instrument-row">
+                        <td class="symbol-cell">USD/JPY</td>
+                        <td class="price-cell bid">-</td>
+                        <td class="price-cell ask">-</td>
+                        <td class="trend-cell"><canvas class="sparkline" id="spark-USDJPY"></canvas></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <footer>
+            <div class="footer-item">Update Frequency: <span class="cfg-val">1s</span></div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
