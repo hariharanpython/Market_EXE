@@ -41,39 +41,63 @@ BOOL WINAPI ConsoleHandler(DWORD dwType) {
 int main(int argc, char **argv) {
   SetConsoleCtrlHandler(ConsoleHandler, TRUE);
   init("log", "client.log");
+  // init("log", "client.log"); // Moved below argument parsing
 
   ix::initNetSystem();
 
   try {
-    info("Starting FIX Market Data Client...");
+    string configPath = "client.cfg";
+    int wsPort = 9002;
+    string clientId = "1";
 
-    // Ensure directories exist
+    if (argc > 1)
+      configPath = argv[1];
+
+    if (!fs::exists(configPath)) {
+      throw runtime_error("Configuration file '" + configPath + "' not found.");
+    }
+
+    SessionSettings settings(configPath);
+    int updateIntervalMs = 1000;
+
+    try {
+      const Dictionary &defaults = settings.get();
+      if (defaults.has("WebSocketPort"))
+        wsPort = stoi(defaults.getString("WebSocketPort"));
+      if (defaults.has("ClientID"))
+        clientId = defaults.getString("ClientID");
+      if (defaults.has("FrontendUpdateInterval"))
+        updateIntervalMs = stoi(defaults.getString("FrontendUpdateInterval"));
+    } catch (...) {
+    }
+
+    // CLI overrides config file
+    if (argc > 2)
+      wsPort = stoi(argv[2]);
+    if (argc > 3)
+      clientId = argv[3];
+
+    info("Starting FIX Market Data Client [" + clientId +
+         "] with config: " + configPath + " and WS port: " + to_string(wsPort));
+    init("log_" + clientId, "client_" + clientId + ".log");
+
     if (!fs::exists("logs"))
       fs::create_directory("logs");
     if (!fs::exists("store"))
       fs::create_directory("store");
-    if (!fs::exists("OHLC_price_data"))
-      fs::create_directory("OHLC_price_data");
-
-    if (!fs::exists("client.cfg")) {
-      throw runtime_error("Configuration file 'client.cfg' not found in " +
-                          fs::current_path().string());
-    }
+    string ohlcDir = "OHLC_price_data_" + clientId;
+    if (!fs::exists(ohlcDir))
+      fs::create_directory(ohlcDir);
 
     map<string, WSMessage> priceCache;
     mutex cacheMutex;
 
-    // Initialize WebSocket Server
-    int wsPort = 9002;
     ix::WebSocketServer wsServer(wsPort, "0.0.0.0");
     wsServer.setOnClientMessageCallback(
         [&priceCache, &cacheMutex](
             shared_ptr<ix::ConnectionState> connectionState,
             ix::WebSocket &webSocket, const ix::WebSocketMessagePtr &msg) {
           if (msg->type == ix::WebSocketMessageType::Open) {
-            info("New frontend connection established");
-
-            // Send initial snapshot of current prices immediately
             lock_guard<mutex> lock(cacheMutex);
             for (auto const &[symbol, latestMsg] : priceCache) {
               json j;
@@ -91,29 +115,15 @@ int main(int argc, char **argv) {
 
     auto res = wsServer.listen();
     if (!res.first) {
-      error("WebSocket server failed to start: " + res.second);
+      error("WebSocket server failed to start on port " + to_string(wsPort) +
+            ": " + res.second);
     } else {
       wsServer.start();
       info("WebSocket server started on port " + to_string(wsPort));
     }
 
-    OHLCBarAggregator ohlc;
+    OHLCBarAggregator ohlc(clientId);
     g_ohlc = &ohlc;
-
-    SessionSettings settings("client.cfg");
-
-    // Read frontend update interval from settings
-    int updateIntervalMs = 1000; // Default
-    try {
-      const Dictionary &defaults = settings.get();
-      if (defaults.has("FrontendUpdateInterval")) {
-        updateIntervalMs = stoi(defaults.getString("FrontendUpdateInterval"));
-      }
-    } catch (...) {
-      info("Using default frontend update interval (1000ms)");
-    }
-    info("Frontend update interval set to " + to_string(updateIntervalMs) +
-         "ms");
 
     FIXMarketDataApp app(ohlc);
     FileStoreFactory storeFactory(settings);
@@ -122,18 +132,15 @@ int main(int argc, char **argv) {
     g_initiator = &initiator;
 
     initiator.start();
-
     info("Client is running. Press CTRL+C to quit.");
 
     auto lastFrontendUpdate = chrono::system_clock::now();
-
     while (g_running) {
       auto now = chrono::system_clock::now();
       auto elapsed =
           chrono::duration_cast<chrono::milliseconds>(now - lastFrontendUpdate)
               .count();
 
-      // Always drain the queue to keep the cache fresh
       WSMessage msg;
       {
         lock_guard<mutex> lock(cacheMutex);
@@ -150,22 +157,17 @@ int main(int argc, char **argv) {
             j["symbol"] = symbol;
             j["bid"] = latestMsg.bid;
             j["ask"] = latestMsg.ask;
-            // Use current time to show the frontend that we are still alive
             j["timestamp"] =
                 chrono::duration_cast<chrono::seconds>(now.time_since_epoch())
                     .count();
-
             string payload = j.dump();
             for (auto &&client : wsServer.getClients()) {
               client->send(payload);
             }
           }
-          info("Broadcasted heartbeat update for " +
-               to_string(priceCache.size()) + " symbols");
         }
         lastFrontendUpdate = now;
       }
-
       this_thread::sleep_for(chrono::milliseconds(50));
     }
 

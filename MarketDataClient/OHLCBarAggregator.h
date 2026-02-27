@@ -46,9 +46,10 @@ enum class Timeframe {
 
 class OHLCBarAggregator {
 public:
-  OHLCBarAggregator() {
-    if (!fs::exists("./OHLC_price_data")) {
-      fs::create_directories("./OHLC_price_data");
+  OHLCBarAggregator(string clientId = "1") : m_clientId(clientId) {
+    string dataDir = "./OHLC_price_data_" + m_clientId;
+    if (!fs::exists(dataDir)) {
+      fs::create_directories(dataDir);
     }
     m_timeframes = {Timeframe::SEC_1,  Timeframe::SEC_5,  Timeframe::SEC_10,
                     Timeframe::SEC_15, Timeframe::SEC_30, Timeframe::MIN_1,
@@ -143,8 +144,8 @@ private:
   }
 
   void saveToCSV(const string &symbol, Timeframe tf, const OHLCBar &bar) {
-    string filename =
-        "./OHLC_price_data/" + symbol + "_" + timeframeToString(tf) + ".csv";
+    string filename = "./OHLC_price_data_" + m_clientId + "/" + symbol + "_" +
+                      timeframeToString(tf) + ".csv";
 
     bool needsHeader = !fs::exists(filename) || fs::file_size(filename) == 0;
 
@@ -162,6 +163,7 @@ private:
     }
   }
 
+  string m_clientId;
   vector<Timeframe> m_timeframes;
   // Using unordered_map for O(1) average lookup performance
   unordered_map<string, unordered_map<Timeframe, OHLCBar>> m_bars;
