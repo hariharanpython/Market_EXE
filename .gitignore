@@ -1,0 +1,23 @@
+# Visual Studio
+.vs/
+[Bb]uild/
+[Oo]ut/
+*.user
+*.aps
+*.pdb
+*.exe
+*.obj
+
+# vcpkg
+vcpkg_installed/
+
+# VS Code
+.vscode/
+
+# Logs
+log/
+application.log
+
+# OHLC Data
+ohlc_data/
+OHLC_price_data/
